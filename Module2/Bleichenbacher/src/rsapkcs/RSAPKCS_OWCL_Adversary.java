@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Random;
 
+import javax.lang.model.util.Elements.Origin;
 import javax.naming.directory.SearchControls;
 import javax.sound.midi.SysexMessage;
 
@@ -38,24 +39,20 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
         this.N = PK.N;
         this.e = PK.exponent;
         // this.k = challenger.getPlainTextLength();
-        this.k = this.N.toString(2).length() ;
-        System.out.println("value of k is " + this.k);
-        System.out.println("Value of plaintext length is " + challenger.getPlainTextLength());
-        this.B = BigInteger.valueOf(2).pow(this.k - 16);
-        System.out.println("Value of B is " + this.B.toString(10));
-        System.out.println("Value of N is" + this.N.toString(10));
+        this.k = this.N.toString(2).length();
+        var K = ceilDivide(BigInteger.valueOf(this.k), BigInteger.valueOf(8));
+        this.B = BigInteger.valueOf(2).pow(8 * (K.intValue() - 2));
 
         // Step 1
         var rng = new Random();
         do{
             var s0 = getRandomBigInteger(rng, this.N);
-            var c0 = this.C.multiply(s0.modPow(this.e, this.N)).mod(N);
+            var c0 = this.C.multiply(s0.modPow(this.e, this.N)).mod(this.N);
             if (checkConforming(c0)){
                 this.s.add(s0);
                 this.C0 = c0;
                 this.M.add(new Pair<BigInteger,BigInteger>(this.B.multiply(BigInteger.valueOf(2)), this.B.multiply(BigInteger.valueOf(3)).subtract(BigInteger.ONE)));
                 this.i = 1;
-                System.out.println("S0 found: " + this.s.get(0));
                 break;
             }
         }
@@ -65,27 +62,19 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
         do{
             // Step 2: Loop to find conforming si
             // Step 2a
-            System.out.println("At round" + this.i);
-            System.out.println("M size: " + this.M.size());
             
             if (this.i==1){
-                System.out.println("Step 2a");
                 var lbound = ceilDivide(this.N, BigInteger.valueOf(3).multiply(this.B));
                 // var lbound = ceilDivide(this.N, BigInteger.valueOf(3 * this.B)).intValue();
                 this.s.add(searchConform(this.C0, lbound, null));
-                System.out.println("S1 found: " + this.s.get(i));
             }
             // Step 2b
             else if (this.i > 1 && this.M.size() >= 2){
-                System.out.println("Step 2b");
                 var lbound = this.s.get(i-1).add(BigInteger.ONE);
                 this.s.add(searchConform(this.C0, lbound, null));
-                System.out.println("S" + this.i + " Found: " + this.s.get(this.i));
             }
             // Step 2c
             else{
-                System.out.println("Step 2c");
-                System.out.println("M contains one interval");
                 if (this.M.size() != 1){
                     System.out.println("The size of M is incorrect!");
                 }
@@ -103,66 +92,29 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
                     blb = ceilDivide(blb, b);
                     var bub = BigInteger.valueOf(3).multiply(this.B).add(r.multiply(this.N));
                     bub = floorDivide(bub, a);
-                    if (prev_slb != null){
-                        if (blb.compareTo(prev_slb)>=0 && blb.compareTo(prev_sub) <=0 && bub.compareTo(prev_sub)>=0){
-                            System.out.println("Overlapped");
-                            blb = prev_slb.add(BigInteger.ONE);
-                        }
-                        else if (blb.compareTo(prev_slb)>=0){
-                            // System.out.println("No overlap");
-                        }
-                        else{
-                            System.out.println("Assumption about bounds are violated");
-                        }
-
-                    }
                     var ss = searchConform(this.C0, blb, bub);
                     if (ss != null){
                         this.s.add(ss);
-                        System.out.println("S" + this.i + " Found: " + this.s.get(this.i));
                         break;
                     }
-                    prev_slb = blb;
-                    prev_sub = bub;
                 }
-
-                // for (BigInteger r = rlbd; true; r = r.add(BigInteger.ONE)){
-                //     var blb = BigInteger.valueOf(2).multiply(this.B).add(r.multiply(this.N));
-                //     blb = ceilDivide(blb, b);
-                //     var bub = BigInteger.valueOf(3).multiply(this.B).add(r.multiply(this.N));
-                //     bub = floorDivide(bub, a);
-                //     var ss = searchConform(this.C0, blb, bub);
-                //     if (ss != null){
-                //         this.s.add(ss);
-                //         System.out.println("S" + this.i + " Found: " + this.s.get(this.i));
-                //         break;
-                //     }
-                // }
             }
             // Step 3
-            printM();
-            System.out.println("Narowing solution");
             narrowSolution(this.i);
 
             //Step 4
-            System.out.println("Running step4 to find solution");
             if (this.M.size() == 1){
-                System.out.println("Only one interval in M");
                 var interval = this.M.get(0);
                 var a = interval.first;
                 var b = interval.second;
                 if (b.equals(a)){
-                    System.out.println("Message found!");
-                    this.message = a.multiply(this.s.get(0).modPow(BigInteger.ONE.negate(), this.N)).mod(this.N);
+                    this.message = a.multiply(this.s.get(0).modInverse(this.N)).mod(this.N);
                     break;
                 }
                 else if (b.compareTo(a)>0){
                     this.i += 1;
-                    System.out.println("One interval left, but a != b");
                 }
                 else {
-                    System.out.println("Something went wrong, the interval has b < a");
-                    System.out.println("a: " + a + " b: " + b);
                     this.i += 1;
                 }
             }
@@ -171,8 +123,11 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
             }
 
         } while (true);
-
-        return this.message;
+        var textL = challenger.getPlainTextLength() * 8;
+        var msg_str = this.message.toString(2);
+        var msg = msg_str.substring(msg_str.length()-textL, msg_str.length());
+        var original_mst = new BigInteger(msg, 2);
+        return original_mst;
     }
 
     public static BigInteger floorDivide(BigInteger numerator, BigInteger denominator) {
@@ -214,19 +169,9 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
             rlb = ceilDivide(rlb, this.N);
             var rub = b.multiply(this.s.get(i)).subtract(this.B.multiply(BigInteger.valueOf(2)));
             rub = floorDivide(rub, this.N);
-            // System.out.println("a: " + a);
-            // System.out.println("b: " + b);
-            // System.out.println("rub: " + rub);
-            // System.out.println("rlb: " + rlb);
-
-            // var new_interval = getIntervalBounds(a, b, rlb, i);
-            // printInterval(new_interval);;
-
             // Code commented out for debugging
             for (BigInteger r = rlb; r.compareTo(rub) <= 0; r = r.add(BigInteger.ONE)){
                 var new_interval = getIntervalBounds(a, b, r, i);
-                // System.out.println("New interval");
-                printInterval(new_interval);
                 if (new_interval != null){
                     newM.add(new_interval);
                     }
@@ -241,15 +186,8 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
         lb = ceilDivide(lb, this.s.get(i));
         var ub = BigInteger.valueOf(3).multiply(this.B).subtract(BigInteger.ONE).add(r.multiply(this.N));
         ub = floorDivide(ub, this.s.get(i));
-        // ub = ceilDivide(ub, this.s.get(i));
-        // System.out.println("lb" + lb.toString(10));
-        // System.out.println("a" + a.toString(10));
-        // System.out.println("ub" + ub.toString(10));
-        // System.out.println("b" + b.toString(10));
         var lower = a.max(lb);
         var upper = b.min(ub);
-        // System.out.println("lower" + lower.toString(10));
-        // System.out.println("upper" + upper.toString(10));
         if (lower.compareTo(upper) <= 0){
             var pair = new Pair<BigInteger, BigInteger>(lower, upper);
             return pair;

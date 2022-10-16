@@ -1,5 +1,6 @@
 # Reduction of DLog to CDH (18 points)
-In this task, your job is to show that you can solve the Discrete Logarithm problem (DLog) (for special prime orders) when given access to an oracle that solves the Computational Diffie Hellman (CDH) problem for you. 
+In this task, your job is to show that you can solve the Discrete Logarithm problem (DLog) (for special prime orders) when given access to an oracle that solves
+the Computational Diffie Hellman (CDH) problem for you. 
 For this end, you will finish the implementation of a generic reduction (```DLog_CDH_Reduction```) that can solve DLog-challenges when given access to a perfect CDH adversary. To simplify your task, the order of the group, in which you work, will always be a prime number with special properties, as we will explain later.
 
 Below, we will explain various parts of this task and various objects, with which your implementation needs to work with.
@@ -112,7 +113,7 @@ public class DLog_CDH_Reduction extends A_DLog_CDH_Reduction<IGroupElement, IRan
         //Implement Code here!
     }
 }
- ```
+```
 ```DLog_CDH_Reduction``` reduces the DLog problem to the CDH problem.
 I.e., your job is to compute the discrete logarithm of a group element while given access to a CDH oracle.
 Formally, your reduction needs to solve a ```DLog_Challenge```. To get this challenge, you need to ask the ```I_DLog_Challenger<IGroupElement> challenger``` for a challenge by calling:

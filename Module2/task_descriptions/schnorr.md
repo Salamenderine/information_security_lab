@@ -15,10 +15,9 @@ To verify, we check that $c = H(m, g^s \cdot y^{-c})$ and return true if this eq
 
 ## Existential Unforgeability (EUF)
 In this task, we consider the existential unforgeability (under two forms of attacks) of the Schnorr scheme.
-In the existential unforgeability game, <u>the adversary's goal is to provide a forged signature on a message of its choice</u>. 
+In the existential unforgeability game, the adversary's goal is to provide a forged signature on a message of its choice. 
 The different subtasks will consider adversaries of dufferebt capabilities.
 All of your adversaries in this task are going to output their solution as the return value of `adversary.run()` as an object of the following type:
-
 ```java
 public class Schnorr_Solution<BigInteger> {
     public String message;
@@ -29,14 +28,14 @@ where `message` corresponds to $m$ above and `c` and `s` correspond to $c$ and $
 
 ## The random oracle model (ROM)
 In cryptographic proofs, hash functions are sometimes modelled by an idealized function called a "random oracle". 
-**Such a random oracle returns a truly random value for every new value submitted to it.**
+Such a random oracle returns a truly random value for every new value submitted to it.
 As the adversary has to query the random oracle in order to compute hashes, security reductions in this ideal model may implement it in a way that helps them - we call this *programming* the random oracle.
 
-In all of the tasks below, you are expected to **implement a full-domain hash random oracle** as the function `public BigInteger hash(String message, IGroupElement r)` where **<u>the return value needs to be between $0$ and $p-1$</u>** ($p$ is the order of the group).
+In all of the tasks below, you are expected to implement a full-domain hash random oracle as the function `public BigInteger hash(String message, IGroupElement r)` where the return value needs to be between $0$ and $p-1$ ($p$ is the order of the group).
 
 ## No message attacks (NMA)
 In a no-message attack, the adversary will have a non-negigible advantage to produce a signature that is valid with respect to a public key and a hash function that your reduction needs to provide.
-For the NMA subtask, your reduction therefore needs to implement the methods `public Schnorr_PK<IGroupElement> getChallenge()` which should **return a public key of the form**
+For the NMA subtask, your reduction therefore needs to implement the methods `public Schnorr_PK<IGroupElement> getChallenge()` which should return a public key of the form
 
 ```java
 public class Schnorr_PK<IGroupElement> {

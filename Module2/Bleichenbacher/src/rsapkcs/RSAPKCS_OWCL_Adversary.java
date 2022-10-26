@@ -84,14 +84,17 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
                 var rlbd = b.multiply(this.s.get(i-1)).subtract(BigInteger.valueOf(2).multiply(this.B));
                 rlbd = ceilDivide(BigInteger.valueOf(2).multiply(rlbd), this.N);
 
-                BigInteger prev_slb = null;
-                BigInteger prev_sub = null;
-
                 for (BigInteger r = rlbd; true; r = r.add(BigInteger.ONE)){
                     var blb = BigInteger.valueOf(2).multiply(this.B).add(r.multiply(this.N));
                     blb = ceilDivide(blb, b);
                     var bub = BigInteger.valueOf(3).multiply(this.B).add(r.multiply(this.N));
-                    bub = floorDivide(bub, a);
+                    if (!checkDivides(bub, a)){
+                        bub = floorDivide(bub, a);
+                    }
+                    else{
+                        bub = floorDivide(bub, a).subtract(BigInteger.ONE);
+                    }
+                    
                     var ss = searchConform(this.C0, blb, bub);
                     if (ss != null){
                         this.s.add(ss);
@@ -137,6 +140,11 @@ public class RSAPKCS_OWCL_Adversary implements I_RSAPKCS_OWCL_Adversary {
         } else {
             return r[0];
         }
+    }
+
+    public static Boolean checkDivides(BigInteger numerator, BigInteger denominator){
+        var r = numerator.divideAndRemainder(denominator);
+        return r[1].compareTo(BigInteger.ZERO) == 0;
     }
 
     private BigInteger searchConform(BigInteger c00, BigInteger lowerbound, BigInteger upperbound){

@@ -1,0 +1,148 @@
+theory EncryptedDH
+begin
+
+/* Signed Diffie-Hellman protocol, first attempt:
+   A -> B : A, aenc_B{g^x}  (x fresh)
+   B -> A : B, aenc_A{g^y, h(g^x)}  (y fresh)
+   A -> B : A, aenc_B{h(g^y)}  */
+
+
+/* ----------------- */
+/* Equational theory */
+/* ----------------- */
+
+/* Load the built-in Diffie-Hellman, asymmetric encryption and hashing equational theories */
+builtins: diffie-hellman, asymmetric-encryption, hashing
+
+
+
+/* ------------------ */
+/* Key infrastructure */
+/* ------------------ */
+
+rule GenKey:  // generate long-term key pair, publish the public key
+   [ Fr(~kA) ] 
+   -->
+   [ !Key($A, ~kA),  // notation: !Fact = persistent fact, not consumed by rules
+     !Pk($A, pk(~kA)),
+     Out(pk(~kA)) ]
+
+
+/*----------------*/
+/* Protocol rules */
+/*----------------*/
+
+/* Question 1 here */
+
+rule A1:
+let X = 'g'^~xI in
+[Fr(~xI), !Pk($B, pkB)]
+-->
+[Out(<$A, aenc(X, pkB)>), A1($A, ~xI, X, $B, pkB)]
+
+rule B1:
+let X = adec(eX, skB)
+    Y = 'g'^~yR
+    k = X^~yR in
+[In(<AA, eX>), !Key($B, skB), !Pk(AA, pkA), Fr(~yR)]
+--[RunningR($B, AA, k)]->
+[Out(<$B, aenc(<Y, h(X)>, pkA)>), B1($B, ~yR, X, Y, AA, pkA, k)]
+
+rule A2:
+let Y = fst(adec(msg, skA))
+    hX = snd(adec(msg, skA))
+    k = Y^~xI in
+[In(<BB, msg>), !Key($A, skA), A1($A, ~xI, X, $B, pkB)]
+--[Eq(BB, $B), Eq(hX, h(X)), RunningI($A, $B, k), CommitI($A, $B, k), FinishedI($A), SecretI($A, $B, k)]->
+[Out(<$A, aenc(h(Y), pkB)>), A2($A, ~xI, X, Y, $B, pkB, k)]
+
+rule B2:
+let hY = adec(ehY, skB) in
+[In(<AAA, ehY>), !Key($B, skB), B1($B, ~yR, X, Y, AA, pkA, k)]
+--[Eq(AAA, AA), Eq(hY, h(Y)), CommitR($B, AA, k), FinishedR($B), SecretR(AA, $B, k)]->
+[B2($B, ~yR, X, Y, AA, pkA, k)]
+
+
+/* ---------- */
+/* Key Reveal */
+/* ---------- */
+
+/* Question 2 here */
+
+rule Compromise_AgentA:
+[!Key($A, kA)] 
+--[Compromised($A)]->
+[Out(kA)]
+
+/* ---------- */
+/* Restrictions */
+/* ---------- */
+
+restriction equality:
+"All x y #i. Eq(x,y) @i ==> x = y"
+
+
+/* ---------- */
+/* Properties */
+/* ---------- */
+
+/* Executability checks */
+lemma executableI:
+exists-trace "Ex #i A. FinishedI(A) @ i & not (Ex #j B. Compromised(B)@j)"
+
+lemma executableR:
+exists-trace "Ex #i B. FinishedR(B) @ i & not (Ex #j B. Compromised(B)@j)"
+
+
+/* Key secrecy:  (Question 3)
+   in all traces, if a key is marked as secret between two uncompromised agents,
+   then the attacker cannot learn it */
+
+lemma key_secrecyI:
+"All #i A B k.
+ (SecretI(A, B, k) @ i &
+  not ((Ex #l. Compromised(A) @ l) | (Ex #m. Compromised(B) @ m)))
+  ==> not (Ex #j. K(k) @ j)"
+
+lemma key_secrecyR:
+"All #i A B k.
+ (SecretR(A, B, k) @ i &
+  not ((Ex #l. Compromised(A) @ l) | (Ex #m. Compromised(B) @ m)))
+  ==> not (Ex #j. K(k) @ j)"
+
+
+
+/* Key agreement:  (Question 4)
+Please uncomment the following two lemmas for this question.
+*/
+
+
+lemma agreementR:
+"All #i A B k.
+  (CommitR( B, A, k) @ i &
+   not ((Ex #l. Compromised(A) @ l) | (Ex #m. Compromised(B) @ m)))
+   ==> (Ex #j. RunningI(A, B, k) @ j & j < i)"
+
+lemma agreementI:
+"All #i A B k.
+  (CommitI(A, B, k) @ i &
+   not ((Ex #l. Compromised(A) @ l) | (Ex #m. Compromised(B) @ m)))
+   ==> (Ex #j. RunningR(B, A, k) @ j & j < i)"
+
+
+lemma secrecy_PFS_R:
+" All A B k #i. 
+   SecretR(A, B, k) @i &
+      not ((Ex #l. (Compromised(A) @ l & l<i )) | (Ex #m. (Compromised(B) @ m & m < i)) )  
+   ==> not (Ex #j. K(k)@j )"
+
+lemma secrecy_PFS_I:
+" All A B k #i. 
+   SecretI(A, B, k) @i &
+      not ((Ex #l. (Compromised(A) @ l & l<i )) | (Ex #m. (Compromised(B) @ m & m < i)) )  
+   ==> not (Ex #j. K(k)@j )"
+
+end
+
+
+

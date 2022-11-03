@@ -20,35 +20,52 @@ builtins: diffie-hellman
 /* -------------- */
 
 /* Initiator role */
+// rule Init_1:
+//   let gxI = 'g'^~xI in         //A's part of the key. naming conventions: ~n for n:fresh, 'g' for a public constant g
+//    [ Fr(~xI) ]                 // generate a fresh value ~xI
+//    -->
+//    [ Init_1($A, ~xI, gxI),     // we use this fact to record the local state of the role
+//      Out(<$A, gxI>) ]          // naming conventions: $A for A:pub
 rule Init_1:
-  let gxI = 'g'^~xI in         //A's part of the key. naming conventions: ~n for n:fresh, 'g' for a public constant g
-   [ Fr(~xI) ]                 // generate a fresh value ~xI
-   -->
-   [ Init_1($A, ~xI, gxI),     // we use this fact to record the local state of the role
-     Out(<$A, gxI>) ]          // naming conventions: $A for A:pub
+let X = 'g'^~xI in
+[Fr(~xI)]
+-->
+[Out(<$A, X>), Init_1($A, ~xI, X)]
 
 
 /* Responder role */
+// rule Resp_1:
+//   let gyR = 'g'^~yR
+//       kR = X^~yR
+//   in
+//    [ Fr(~yR),                     // generate a fresh value ~yR
+//      In(<a, X>) ]               
+//    --[ FinishedR($B),             // record that the responder has executed his last rule
+//        SecretR(a, $B, kR)]->     // record that the responder believes X^~yR should be secret
+//    [ Resp_1($B, ~yR, gyR, X, kR), // update the state (this is not necessary, since this is the last responder rule)
+//      Out(<$B, gyR>) ]
 rule Resp_1:
-  let gyR = 'g'^~yR
-      kR = X^~yR
-  in
-   [ Fr(~yR),                     // generate a fresh value ~yR
-     In(<a, X>) ]               
-   --[ FinishedR($B),             // record that the responder has executed his last rule
-       SecretR(a, $B, kR)]->     // record that the responder believes X^~yR should be secret
-   [ Resp_1($B, ~yR, gyR, X, kR), // update the state (this is not necessary, since this is the last responder rule)
-     Out(<$B, gyR>) ]
+let Y = 'g'^~yR
+    k = X^~yR in
+[In(<A, X>), Fr(~yR)]
+--[FinishedR($B), SecretR(A, $B, k)]->
+[Out(<$B, Y>), Resp_1($B, X, Y, A, k)]
 
 
 /*Initiator role*/
+// rule Init_2:
+//   let kI = Y^~xI in            // shared key computed by A
+//    [ Init_1($A, ~xI, gxI),
+//      In(<b, Y>) ]
+//    --[ FinishedI($A),              // record that the initiator has executed his last rule
+//        SecretI($A, b, kI)]->       // record that the initiator believes Y^~xI should be secret
+//    [ Init_2($A, ~xI, gxI, Y, kI) ] // update the state (this is not necessary, since this is the last initiator rule)
 rule Init_2:
-  let kI = Y^~xI in            // shared key computed by A
-   [ Init_1($A, ~xI, gxI),
-     In(<b, Y>) ]
-   --[ FinishedI($A),              // record that the initiator has executed his last rule
-       SecretI($A, b, kI)]->       // record that the initiator believes Y^~xI should be secret
-   [ Init_2($A, ~xI, gxI, Y, kI) ] // update the state (this is not necessary, since this is the last initiator rule)
+let k = Y^~xI in
+[In(<B, Y>), Init_1($A, ~xI, X)]
+--[FinishedI($A), SecretI($A, B, k)]->
+[Init_2($A, ~xI, X, Y, B, k)]
+
 
 
 /* ---------- */

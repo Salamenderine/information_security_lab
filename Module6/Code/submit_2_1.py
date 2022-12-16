@@ -1,116 +1,73 @@
 import sys
 import os
-import glob
 
-# No ASLR so these are fix
-input_le_add =          "4011D0"
-input_done_add =        "4011D4"
-comparision_true_add =  "401211"
-end_loop_add =          "401288"
-distance_add_add =      "40126F"
-wrap_j_hit_add =        "40127E"
-equal_true_add =        "4012A3"
-correct_add =           "40140C"
-wrong_add =             "401413"
+CMP_TRUE_ADDR = "0x401211"
+SHIFT_ADDR = "0x401286"
+TO_SHIFT = "0x401292"
+CORR_ADDR = "0x4012a8"
 
-def blocking_on(addresses, stop_block):
-    blocks = []
-    block = []
-    for add in addresses:
-        block.append(add)
-        if stop_block.lower() in add:
-            blocks.append(block)
-            block = []
-    blocks.append(block)
-    return blocks
-
-def parse_interesting(filename):
-    addresses = []
-    #print(f"Doing {filename}")
-    with open(filename, "r") as trace:
-        for line in trace:
-            if "E:" in line and ":C:" in line:
-                # we have an execution line
-                addresses.append(line.split(':')[1])
-    guesses = []
-    start_blocks = blocking_on(addresses, input_done_add)
-    # start blocks has two lists, 0 is the one with the len check, 1 with the for loop
-    assert len(start_blocks) == 2
-    start, comp = start_blocks
-    # In the start we see if the test password is too long??? Not working bc cmovle on cmp
-    #geuss_le = input_le_add.lower() in ''.join(start)
-    #print(f"{filename} had {'<=' if geuss_le else '>'} characters")
-
-    # These are the comparision blocks
-    comp_blocks = blocking_on(comp, end_loop_add)
-    # prepare guess string
-    name = os.path.basename(filename)[:-4]
-    for i, cmp_blk in enumerate(comp_blocks[:-1]):
-        if comparision_true_add.lower() in ''.join(cmp_blk):
-            guesses.append(name[i])
-        else:
-            #guesses.append('_')
-            # So we missed the first, let's count how many j's, i.e. how far is the offset
-            j_count = 0
-            for l in cmp_blk:
-                if wrap_j_hit_add.lower() in l:
-                    j_count += 1
-            total = ord(name[i])+j_count
-            if total > ord('z'):
-                total -= 26
-            char = chr(total)
-            guesses.append(char)
-
-    # last comp_block has to contain either correct or false, otherwise trace incomplete
-    last_block = comp_blocks[-1]
-    correct = None
-    for add in last_block:
-        if correct_add.lower() in add:
-            correct = True
-            break
-        if wrong_add.lower() in add:
-            correct = False
-            break
-    assert correct is not None # only true if one found
-    # Check if I have enough data
-    if correct:
-        # We have it fully correct
-        return guesses, False
-    if equal_true_add.lower() in ''.join(last_block) and len(guesses) == len(name):
-        # The return does a comparision with an &&, where the && lets us check it
-        return guesses, False
-    if len(guesses) < len(name):
-        # We were able to reproduce it
-        return guesses, False
-    return guesses, True
-
-def runPaths(path_folder):
-    best_guess = []
-    b_partial = True
-    for filename in glob.glob(os.path.join(path_folder, '*.txt')):
-        guesses, partial = parse_interesting(filename)
-        if len(guesses) > len(best_guess):
-            best_guess = guesses
-        if not partial:
-            b_partial = False    
-    return best_guess, b_partial
+def transform(original, shift):
+    ascii_idx = ord(original) - ord('a') + shift
+    ascii_idx %= 26
+    ascii_idx += ord('a')
+    return chr(ascii_idx)
 
 def main():
-    if len(sys.argv) != 3:
-        print(f"This code expects two arguments! arg1: /path/to/traces/folder arg2: id")
-    path_folder = sys.argv[1]
-    id = sys.argv[2]
-    output = f"/home/isl/t2_1/output/oput_{id}"
-    guess, partial = runPaths(path_folder)
-    guess_s = ''.join(guess)
-    out_s = f"{guess_s},{'partial' if partial else 'complete'}"
-    try:
-        with open(output, "w") as out:
-            out.writelines(out_s)
-    except:
-        os.system('mkdir /home/isl/t2_1/output')
-        with open(output, "w") as out:
-            out.writelines(out_s)
+    assert len(sys.argv) == 3, "Requires two arguments: path-to-trace and trace-id"
+
+    trace_path, trace_id = sys.argv[1], sys.argv[2]
+    trace_names = os.listdir(trace_path)
+    passwords = [item[:-4] for item in trace_names]
+    corr_chars, is_corr, pwd_len = {}, False, None
+
+    for pwd in passwords:
+        shift, idx = 0, 0
+        addr_lst = []
+        with open(trace_path + "/{}.txt".format(pwd)) as file:
+            for line in file:
+                if "E:" in line and ":C:" in line:
+                    addr_lst.append(line.split(':')[1])
+        for addr in addr_lst:
+            if addr == CMP_TRUE_ADDR:
+                corr_chars[idx - 1] = pwd[idx - 1]
+            elif SHIFT_ADDR == addr:
+                shift += 1
+            elif addr == TO_SHIFT:
+                if shift > 0:
+                    corr_chars[idx - 1] = transform(pwd[idx - 1], shift-1)
+                shift = 0
+                idx += 1
+            elif CORR_ADDR == addr:
+                is_corr = True
+            
+        if len(pwd) >= idx:
+            pwd_len = idx - 1
+
+    if pwd_len is not None:
+        is_corr = True
+
+    final_pwd = ''
+    for i in range(max(corr_chars.keys()) + 1):
+        if i in corr_chars:
+            final_pwd += corr_chars[i]
+        else:
+            final_pwd += "_"
+            is_corr = False
+
+    if is_corr:
+        msg = final_pwd + ",complete"
+    else:
+        msg = final_pwd + ",complete"
+
+    print(msg)
+
+    output_path = '/home/isl/t2_1/output/oput_{}'.format(trace_id)
+    if not os.path.exists('/home/isl/t2_1/output'):
+        os.mkdir('/home/isl/t2_1/output')
+    with open(output_path, 'w') as file:
+        file.write(msg)
+
+
 
 if __name__ == "__main__":
     main()

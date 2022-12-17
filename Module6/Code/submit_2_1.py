@@ -57,7 +57,7 @@ def main():
     if is_corr:
         msg = final_pwd + ",complete"
     else:
-        msg = final_pwd + ",complete"
+        msg = final_pwd + ",partial"
 
     print(msg)
 

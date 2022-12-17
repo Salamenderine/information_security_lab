@@ -40,7 +40,7 @@ int main (int argc, char* argv[])	{
 	}
 
     int ch;
-    for (int i = 0; i<15 &&(ch=getc(password_file) != EOF;)){
+    for (int i = 0; i<15 &&(ch=getc(password_file)) != EOF;){
         password[i] = ch;
         ++i;
     }
